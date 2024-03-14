@@ -14,8 +14,19 @@
             "type": "String",
             "metadata": {
               "description": "Specifies a password for virtual machines."
-      }
-        }
+          }
+        },
+        "authenticationType": {
+          "type": "string",
+          "defaultValue": "sshPublicKey",
+          "allowedValues": [
+            "sshPublicKey",
+            "password"
+          ],
+          "metadata": {
+            "description": "Type of authentication to use on the Virtual Machine. SSH key is recommended."
+          }
+        },
     },
     "variables": {
       "publicIPAddressName": "[concat(parameters('projectName'), '-ip')]"  
