@@ -298,7 +298,7 @@
                         "adminUsername": "[parameters('adminUsername')]",
                         "adminPassword": "[parameters('adminPasswordOrKey')]",
                         "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'password'), null(), variables('linuxConfiguration'))]",
-                        "customData": "[base64('wget https://raw.githubusercontent.com/ant-media/Scripts/master/install_mongodb.sh && chmod +x install_mongodb.sh && ./install_mongodb.sh')]"
+                        "customData": "[base64('sudo sed -i '/org.apache.catalina.valves.RemoteIpValve/d' /usr/local/antmedia/conf/jee-container.xml && /usr/local/antmedia/change_server_mode.sh cluster 10.0.1.4')]"
                     },
                     "storageProfile": {
                         "osDisk": {
