@@ -257,7 +257,7 @@
         ],
         "backendAddressPools": [
           {
-            "name": "myBackendPool",
+            "name": "OriginBackendPool",
             "properties": {}
           }
         ],
@@ -297,7 +297,7 @@
                 "id": "[resourceId('Microsoft.Network/applicationGateways/httpListeners', variables('applicationGateWayName'), 'myListener')]"
               },
               "backendAddressPool": {
-                "id": "[resourceId('Microsoft.Network/applicationGateways/backendAddressPools', variables('applicationGateWayName'), 'myBackendPool')]"
+                "id": "[resourceId('Microsoft.Network/applicationGateways/backendAddressPools', variables('applicationGateWayName'), 'OriginBackendPool')]"
               },
               "backendHttpSettings": {
                 "id": "[resourceId('Microsoft.Network/applicationGateways/backendHttpSettingsCollection', variables('applicationGateWayName'), 'myHTTPSetting')]"
@@ -444,6 +444,11 @@
                                                 "subnet": {
                                                     "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'origin')]"
                                                 },
+                                                      "applicationGatewayBackendAddressPools": [
+                                                {
+                                                  "id": "[resourceId('Microsoft.Network/applicationGateways/backendAddressPools', variables('applicationGateWayName'), 'OriginBackendPool')]"
+                                                }
+                                              ],
                                                 "primary": true,
                                                 "publicIPAddressConfiguration": {
                                                     "name": "publicIp-antmedia-cluster-vnet-nic01",
