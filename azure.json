@@ -1,15 +1,8 @@
 {
-  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-  "contentVersion": "1.0.0.0",
-  "metadata": {
-    "_generator": {
-      "name": "bicep",
-      "version": "0.25.53.49325",
-      "templateHash": "2386182166504519146"
-    }
-  },
-  "parameters": {
-      "virtualNetworks_antmedia_cluster_vnet_name": {
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "virtualNetworks_antmedia_cluster_vnet_name": {
             "defaultValue": "antmedia-cluster-vnet",
             "type": "String"
         },
@@ -17,53 +10,53 @@
             "defaultValue": "antmedia-cluster",
             "type": "String"
         },
-      "vmSize": {
-        "type": "string",
-        "defaultValue": "Standard_D2s_v3",
-        "metadata": {
-          "description": "The size of the VM"
-      }
+        "vmSize": {
+            "defaultValue": "Standard_D2s_v3",
+            "type": "String",
+            "metadata": {
+                "description": "The size of the VM"
+            }
+        },
+        "adminUsername": {
+            "type": "String",
+            "metadata": {
+                "description": "Username for the Virtual Machine."
+            }
+        },
+        "authenticationType": {
+            "defaultValue": "password",
+            "allowedValues": [
+                "sshPublicKey",
+                "password"
+            ],
+            "type": "String",
+            "metadata": {
+                "description": "Type of authentication to use on the Virtual Machine. SSH key is recommended."
+            }
+        },
+        "adminPasswordOrKey": {
+            "type": "SecureString",
+            "metadata": {
+                "description": "SSH Key or password for the Virtual Machine. SSH key is recommended."
+            }
+        }
     },
-    "adminUsername": {
-      "type": "string",
-      "metadata": {
-        "description": "Username for the Virtual Machine."
-      }
+    "variables": {
+        "publicIPAddressName": "[concat(parameters('projectName'), '-ip')]",
+        "osDiskType": "Standard_LRS",
+        "linuxConfiguration": {
+            "disablePasswordAuthentication": true,
+            "ssh": {
+                "publicKeys": [
+                    {
+                        "path": "[format('/home/{0}/.ssh/authorized_keys', parameters('adminUsername'))]",
+                        "keyData": "[parameters('adminPasswordOrKey')]"
+                    }
+                ]
+            }
+        }
     },
-    "authenticationType": {
-      "type": "string",
-      "defaultValue": "password",
-      "allowedValues": [
-        "sshPublicKey",
-        "password"
-      ],
-      "metadata": {
-        "description": "Type of authentication to use on the Virtual Machine. SSH key is recommended."
-      }
-    },
-    "adminPasswordOrKey": {
-      "type": "securestring",
-      "metadata": {
-        "description": "SSH Key or password for the Virtual Machine. SSH key is recommended."
-      }
-    }
-  },
-  "variables": {
-    "publicIPAddressName": "[concat(parameters('projectName'), '-ip')]", 
-    "osDiskType": "Standard_LRS",
-    "linuxConfiguration": {
-      "disablePasswordAuthentication": true,
-      "ssh": {
-        "publicKeys": [
-          {
-            "path": "[format('/home/{0}/.ssh/authorized_keys', parameters('adminUsername'))]",
-            "keyData": "[parameters('adminPasswordOrKey')]"
-          }
-        ]
-      }
-    }
-  },
-  "resources": [
+    "resources": [
         {
             "type": "Microsoft.Network/virtualNetworks",
             "apiVersion": "2023-09-01",
@@ -125,41 +118,41 @@
             }
         },
         {
-          "type": "Microsoft.Network/networkSecurityGroups",
-          "apiVersion": "2020-05-01",
-          "name": "MongoDB-Security-Group",
-          "location": "[resourceGroup().location]",
-          "properties": {
-            "securityRules": [
-              {
-                "name": "ssh_rule",
-                "properties": {
-                  "description": "Locks inbound down to ssh default port 22.",
-                  "protocol": "Tcp",
-                  "sourcePortRange": "*",
-                  "destinationPortRange": "22",
-                  "sourceAddressPrefix": "*",
-                  "destinationAddressPrefix": "*",
-                  "access": "Allow",
-                  "priority": 123,
-                  "direction": "Inbound"
-                }
-              }
-            ]
-          }
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "2020-05-01",
+            "name": "MongoDB-Security-Group",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "ssh_rule",
+                        "properties": {
+                            "description": "Locks inbound down to ssh default port 22.",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 123,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
         },
         {
-          "type": "Microsoft.Network/publicIPAddresses",
-          "apiVersion": "2020-05-01",
-          "name": "[variables('publicIPAddressName')]",
-          "location": "[resourceGroup().location]",
-          "properties": {
-            "publicIPAllocationMethod": "Dynamic"
-          },
-          "sku": {
-            "name": "Basic"
-          }
-        },         
+            "type": "Microsoft.Network/publicIPAddresses",
+            "apiVersion": "2020-05-01",
+            "name": "[variables('publicIPAddressName')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Basic"
+            },
+            "properties": {
+                "publicIPAllocationMethod": "Dynamic"
+            }
+        },
         {
             "type": "Microsoft.Network/virtualNetworks/subnets",
             "apiVersion": "2023-09-01",
@@ -207,51 +200,51 @@
                 "privateEndpointNetworkPolicies": "Disabled",
                 "privateLinkServiceNetworkPolicies": "Enabled"
             }
-        },  
-    {
-      "type": "Microsoft.Compute/virtualMachines",
-      "apiVersion": "2023-09-01",
-      "name": "antmedia-mongodb",
-      "location": "[resourceGroup().location]",
-      "properties": {
-        "hardwareProfile": {
-          "vmSize": "[parameters('vmSize')]"
         },
-        "storageProfile": {
-          "osDisk": {
-            "createOption": "FromImage",
-            "managedDisk": {
-              "storageAccountType": "[variables('osDiskType')]"
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2023-09-01",
+            "name": "antmedia-mongodb",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'origin')]",
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'edge')]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[parameters('vmSize')]"
+                },
+                "storageProfile": {
+                    "osDisk": {
+                        "createOption": "FromImage",
+                        "managedDisk": {
+                            "storageAccountType": "[variables('osDiskType')]"
+                        }
+                    },
+                    "imageReference": {
+                        "publisher": "Canonical",
+                        "offer": "0001-com-ubuntu-server-jammy",
+                        "sku": "22_04-lts-gen2",
+                        "version": "latest"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', 'antmedia-mongodb-NIC')]"
+                        }
+                    ]
+                },
+                "osProfile": {
+                    "computerName": "antmedia-mongodb",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPasswordOrKey')]",
+                    "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'password'), null(), variables('linuxConfiguration'))]",
+                    "customData": "[base64('wget https://raw.githubusercontent.com/ant-media/Scripts/master/install_mongodb.sh && chmod +x install_mongodb.sh && ./install_mongodb.sh')]"
+                }
             }
-          },
-          "imageReference": {
-            "publisher": "Canonical",
-            "offer": "0001-com-ubuntu-server-jammy",
-            "sku": "22_04-lts-gen2",
-            "version": "latest"
-          }
         },
-        "networkProfile": {
-          "networkInterfaces": [
-            {
-              "id": "[resourceId('Microsoft.Network/networkInterfaces', 'antmedia-mongodb-NIC')]"
-            }
-          ]
-        },
-        "osProfile": {
-          "computerName": "antmedia-mongodb",
-          "adminUsername": "[parameters('adminUsername')]",
-          "adminPassword": "[parameters('adminPasswordOrKey')]",
-          "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'password'), null(), variables('linuxConfiguration'))]",
-       "customData": "[base64('wget https://raw.githubusercontent.com/ant-media/Scripts/master/install_mongodb.sh && chmod +x install_mongodb.sh && ./install_mongodb.sh')]"
-        }
-      },
-      "dependsOn": [
-          "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'origin')]",
-          "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'edge')]"
-      ]
-    },
-          {
+        {
             "type": "Microsoft.Network/networkInterfaces",
             "apiVersion": "2023-09-01",
             "name": "antmedia-mongodb-NIC",
@@ -266,7 +259,7 @@
                         "properties": {
                             "privateIPAllocationMethod": "Dynamic",
                             "publicIPAddress": {
-                              "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName'))]"
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName'))]"
                             },
                             "subnet": {
                                 "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'origin')]"
@@ -275,16 +268,85 @@
                     }
                 ]
             }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachineScaleSets",
+            "apiVersion": "2023-03-01",
+            "name": "antmedia-origin",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'origin')]",
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'edge')]"
+            ],
+            "sku": {
+                "name": "Standard_F2s_v2",
+                "tier": "Standard",
+                "capacity": 1
+            },
+            "plan": {
+                "name": "enterprise_edition",
+                "product": "ant_media_server_enterprise",
+                "publisher": "antmedia"
+            },
+            "properties": {
+                "platformFaultDomainCount": 1,
+                "singlePlacementGroup": false,
+                "orchestrationMode": "Flexible",
+                "virtualMachineProfile": {
+                    "osProfile": {
+                        "computerNamePrefix": "antmedia-",
+                        "adminUsername": "[parameters('adminUsername')]",
+                        "adminPassword": "[parameters('adminPasswordOrKey')]",
+                        "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'password'), null(), variables('linuxConfiguration'))]",
+                        "customData": "[base64('wget https://raw.githubusercontent.com/ant-media/Scripts/master/install_mongodb.sh && chmod +x install_mongodb.sh && ./install_mongodb.sh')]"
+                    },
+                    "storageProfile": {
+                        "osDisk": {
+                            "createOption": "FromImage",
+                            "managedDisk": {
+                                "storageAccountType": "Premium_LRS"
+                            }
+                        },
+                        "imageReference": {
+                            "publisher": "antmedia",
+                            "offer": "ant_media_server_enterprise",
+                            "sku": "enterprise_edition",
+                            "version": "latest"
+                        }
+                    },
+                    "networkProfile": {
+                        "networkApiVersion": "2020-11-01",
+                        "networkInterfaceConfigurations": [
+                            {
+                                "name": "nicConfig",
+                                "properties": {
+                                    "primary": true,
+                                    "ipConfigurations": [
+                                        {
+                                            "name": "antmedia-cluster-vnet-nic01-defaultIpConfiguration",
+                                            "properties": {
+                                                "privateIPAddressVersion": "IPv4",
+                                                "subnet": {
+                                                    "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'origin')]"
+                                                },
+                                                "primary": true,
+                                                "publicIPAddressConfiguration": {
+                                                    "name": "publicIp-antmedia-cluster-vnet-nic01",
+                                                    "properties": {
+                                                        "idleTimeoutInMinutes": 15,
+                                                        "ipTags": [],
+                                                        "publicIPAddressVersion": "IPv4"
+                                                    }
+                                                    }                                            
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
         }
-  ],
-  "outputs": {
-    "adminUsername": {
-      "type": "string",
-      "value": "[parameters('adminUsername')]"
-    },
-    "hostname": {
-      "type": "string",
-      "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName')), '2023-09-01').dnsSettings.fqdn]"
-    }
-  }
+    ]
 }
