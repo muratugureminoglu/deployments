@@ -43,7 +43,10 @@
     },
     "variables": {
         "publicIPAddressName": "[concat(parameters('projectName'), '-ip')]",
+        "appGwPublicIPAddressName": "app-gw-ip",
         "osDiskType": "Standard_LRS",
+        "applicationGateWayName": "myAppGateway",
+
         "linuxConfiguration": {
             "disablePasswordAuthentication": true,
             "ssh": {
@@ -142,6 +145,18 @@
             }
         },
         {
+          "type": "Microsoft.Network/publicIPAddresses",
+          "name": "[variables('appGwPublicIPAddressName')]",
+          "location": "[resourceGroup().location]",
+          "apiVersion": "2020-06-01",
+          "sku": {
+            "name": "Standard"
+          },
+          "properties": {
+            "publicIPAllocationMethod": "Static"
+          }
+        },
+        {
             "type": "Microsoft.Network/publicIPAddresses",
             "apiVersion": "2020-05-01",
             "name": "[variables('publicIPAddressName')]",
@@ -201,6 +216,106 @@
                 "privateLinkServiceNetworkPolicies": "Enabled"
             }
         },
+    {
+      "type": "Microsoft.Network/applicationGateways",
+      "apiVersion": "2021-05-01",
+      "name": "[variables('applicationGateWayName')]",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "sku": {
+          "name": "Standard_v2",
+          "tier": "Standard_v2"
+        },
+        "gatewayIPConfigurations": [
+          {
+            "name": "appGatewayIpConfig",
+            "properties": {
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'app-gw')]"
+              }
+            }
+          }
+        ],
+        "frontendIPConfigurations": [
+          {
+            "name": "appGwPublicFrontendIp",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('appGwPublicIPAddressName'))]"
+              }
+            }
+          }
+        ],
+        "frontendPorts": [
+          {
+            "name": "port_80",
+            "properties": {
+              "port": 80
+            }
+          }
+        ],
+        "backendAddressPools": [
+          {
+            "name": "myBackendPool",
+            "properties": {}
+          }
+        ],
+        "backendHttpSettingsCollection": [
+          {
+            "name": "myHTTPSetting",
+            "properties": {
+              "port": 80,
+              "protocol": "Http",
+              "cookieBasedAffinity": "Disabled",
+              "pickHostNameFromBackendAddress": false,
+              "requestTimeout": 20
+            }
+          }
+        ],
+        "httpListeners": [
+          {
+            "name": "myListener",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[resourceId('Microsoft.Network/applicationGateways/frontendIPConfigurations', variables('applicationGateWayName'), 'appGwPublicFrontendIp')]"
+              },
+              "frontendPort": {
+                "id": "[resourceId('Microsoft.Network/applicationGateways/frontendPorts', variables('applicationGateWayName'), 'port_80')]"
+              },
+              "protocol": "Http",
+              "requireServerNameIndication": false
+            }
+          }
+        ],
+        "requestRoutingRules": [
+          {
+            "name": "myRoutingRule",
+            "properties": {
+              "ruleType": "Basic",
+              "httpListener": {
+                "id": "[resourceId('Microsoft.Network/applicationGateways/httpListeners', variables('applicationGateWayName'), 'myListener')]"
+              },
+              "backendAddressPool": {
+                "id": "[resourceId('Microsoft.Network/applicationGateways/backendAddressPools', variables('applicationGateWayName'), 'myBackendPool')]"
+              },
+              "backendHttpSettings": {
+                "id": "[resourceId('Microsoft.Network/applicationGateways/backendHttpSettingsCollection', variables('applicationGateWayName'), 'myHTTPSetting')]"
+              }
+            }
+          }
+        ],
+        "enableHttp2": false,
+        "autoscaleConfiguration": {
+          "minCapacity": 0,
+          "maxCapacity": 10
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('appGwPublicIPAddressName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'app-gw')]"
+      ]
+    },        
         {
             "type": "Microsoft.Compute/virtualMachines",
             "apiVersion": "2023-09-01",
@@ -298,7 +413,7 @@
                         "adminUsername": "[parameters('adminUsername')]",
                         "adminPassword": "[parameters('adminPasswordOrKey')]",
                         "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'password'), null(), variables('linuxConfiguration'))]",
-                        "customData": "[base64('sudo sed -i '/org.apache.catalina.valves.RemoteIpValve/d' /usr/local/antmedia/conf/jee-container.xml && /usr/local/antmedia/change_server_mode.sh cluster 10.0.1.4')]"
+                        "customData": "[base64('sudo sed -i \"/org.apache.catalina.valves.RemoteIpValve/d\" /usr/local/antmedia/conf/jee-container.xml && /usr/local/antmedia/change_server_mode.sh cluster 10.0.1.4')]"
                     },
                     "storageProfile": {
                         "osDisk": {
