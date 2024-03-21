@@ -15,6 +15,10 @@
         "description": "Admin username for the backend servers"
       }
     },
+    "virtualNetworks_antmedia_cluster_vnet_name": {
+          "defaultValue": "antmedia-cluster-vnet",
+          "type": "String"
+      },
     "adminPassword": {
       "type": "secureString",
       "metadata": {
@@ -28,35 +32,200 @@
         "description": "Location for all resources."
       }
     },
-    "vmSize": {
+    "vmSku": {
       "type": "string",
-      "defaultValue": "Standard_B2ms",
+      "defaultValue": "Standard_A1",
       "metadata": {
-        "description": "Size of the virtual machine."
+        "description": "Size of VMs in the VM Scale Set."
       }
+    },
+    "authenticationType": {
+      "type": "string",
+      "defaultValue": "sshPublicKey",
+      "allowedValues": [
+        "sshPublicKey",
+        "password"
+      ],
+      "metadata": {
+        "description": "Type of authentication to use on the Virtual Machine. SSH key is recommended."
+      }
+    },
+    "instanceCount": {
+      "type": "int",
+      "metadata": {
+        "description": "Number of VM instances (1000 or less)."
+      },
+      "minValue": 1,
+      "maxValue": 1000
     }
   },
   "variables": {
-    "virtualMachineName": "myVM",
-    "virtualNetworkName": "myVNet",
-    "networkInterfaceName": "net-int",
     "ipconfigName": "ipconfig",
     "publicIPAddressName": "public_ip",
+    "networkInterfaceName": "net-int",
     "nsgName": "vm-nsg",
     "applicationGateWayName": "myAppGateway",
-    "virtualNetworkPrefix": "10.0.0.0/16",
-    "subnetPrefix": "10.0.0.0/24",
-    "backendSubnetPrefix": "10.0.1.0/24"
+    "imageReference": {
+      "publisher": "Canonical",
+      "offer": "0001-com-ubuntu-server-jammy",
+      "sku": "22_04-lts-gen2",
+      "version": "latest"
+    }
   },
   "resources": [
+        {
+            "type": "Microsoft.Network/virtualNetworks",
+            "apiVersion": "2023-09-01",
+            "name": "[parameters('virtualNetworks_antmedia_cluster_vnet_name')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "10.0.0.0/16"
+                    ]
+                },
+                "encryption": {
+                    "enabled": false,
+                    "enforcement": "AllowUnencrypted"
+                },
+                "subnets": [
+                    {
+                        "name": "origin",
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'origin')]",
+                        "properties": {
+                            "addressPrefixes": [
+                                "10.0.1.0/24"
+                            ],
+                            "delegations": [],
+                            "privateEndpointNetworkPolicies": "Disabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        },
+                        "type": "Microsoft.Network/virtualNetworks/subnets"
+                    },
+                    {
+                        "name": "edge",
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'edge')]",
+                        "properties": {
+                            "addressPrefixes": [
+                                "10.0.2.0/24"
+                            ],
+                            "delegations": [],
+                            "privateEndpointNetworkPolicies": "Disabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        },
+                        "type": "Microsoft.Network/virtualNetworks/subnets"
+                    },
+                    {
+                        "name": "app-gw",
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'app-gw')]",
+                        "properties": {
+                            "addressPrefixes": [
+                                "10.0.0.0/24"
+                            ],
+                            "delegations": [],
+                            "privateEndpointNetworkPolicies": "Disabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        },
+                        "type": "Microsoft.Network/virtualNetworks/subnets"
+                    }
+                ],
+                "virtualNetworkPeerings": [],
+                "enableDdosProtection": false
+            }
+        },
+        {
+          "type": "Microsoft.Network/networkSecurityGroups",
+          "apiVersion": "2020-05-01",
+          "name": "MongoDB-Security-Group",
+          "location": "[resourceGroup().location]",
+          "properties": {
+            "securityRules": [
+              {
+                "name": "ssh_rule",
+                "properties": {
+                  "description": "Locks inbound down to ssh default port 22.",
+                  "protocol": "Tcp",
+                  "sourcePortRange": "*",
+                  "destinationPortRange": "22",
+                  "sourceAddressPrefix": "*",
+                  "destinationAddressPrefix": "*",
+                  "access": "Allow",
+                  "priority": 123,
+                  "direction": "Inbound"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "Microsoft.Network/publicIPAddresses",
+          "apiVersion": "2020-05-01",
+          "name": "[variables('publicIPAddressName')]",
+          "location": "[resourceGroup().location]",
+          "properties": {
+            "publicIPAllocationMethod": "Dynamic"
+          },
+          "sku": {
+            "name": "Basic"
+          }
+        },         
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2023-09-01",
+            "name": "[concat(parameters('virtualNetworks_antmedia_cluster_vnet_name'), '/app-gw')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'origin')]"
+            ],
+            "properties": {
+                "addressPrefixes": [
+                    "10.0.0.0/24"
+                ],
+                "delegations": [],
+                "privateEndpointNetworkPolicies": "Disabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2023-09-01",
+            "name": "[concat(parameters('virtualNetworks_antmedia_cluster_vnet_name'), '/edge')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'origin')]"
+            ],
+            "properties": {
+                "addressPrefixes": [
+                    "10.0.2.0/24"
+                ],
+                "delegations": [],
+                "privateEndpointNetworkPolicies": "Disabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2023-09-01",
+            "name": "[concat(parameters('virtualNetworks_antmedia_cluster_vnet_name'), '/origin')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworks_antmedia_cluster_vnet_name'))]"
+            ],
+            "properties": {
+                "addressPrefixes": [
+                    "10.0.1.0/24"
+                ],
+                "delegations": [],
+                "privateEndpointNetworkPolicies": "Disabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        },  
+
     {
       "copy": {
         "name": "nsg",
-        "count": "[length(range(0, 2))]"
+        "count": "[parameters('instanceCount')]"
       },
       "type": "Microsoft.Network/networkSecurityGroups",
-      "apiVersion": "2021-05-01",
-      "name": "[format('{0}{1}', variables('nsgName'), add(range(0, 2)[copyIndex()], 1))]",
+      "apiVersion": "2020-05-01",
+      "name": "[format('{0}-{1}', variables('nsgName'), copyIndex())]",
       "location": "[parameters('location')]",
       "properties": {
         "securityRules": [
@@ -95,111 +264,70 @@
       }
     },
     {
-      "type": "Microsoft.Network/virtualNetworks",
-      "apiVersion": "2021-05-01",
-      "name": "[variables('virtualNetworkName')]",
+      "type": "Microsoft.Compute/virtualMachineScaleSets",
+      "name": "antmedia-origin",
       "location": "[parameters('location')]",
-      "properties": {
-        "addressSpace": {
-          "addressPrefixes": [
-            "[variables('virtualNetworkPrefix')]"
-          ]
-        },
-        "subnets": [
-          {
-            "name": "myAGSubnet",
-            "properties": {
-              "addressPrefix": "[variables('subnetPrefix')]",
-              "privateEndpointNetworkPolicies": "Enabled",
-              "privateLinkServiceNetworkPolicies": "Enabled"
-            }
-          },
-          {
-            "name": "myBackendSubnet",
-            "properties": {
-              "addressPrefix": "[variables('backendSubnetPrefix')]",
-              "privateEndpointNetworkPolicies": "Enabled",
-              "privateLinkServiceNetworkPolicies": "Enabled"
-            }
-          }
-        ],
-        "enableDdosProtection": false,
-        "enableVmProtection": false
-      }
-    },
-    {
-      "copy": {
-        "name": "virtualMachine",
-        "count": "[length(range(0, 2))]"
+      "apiVersion": "2017-03-30",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'origin')]",
+        "[resourceId('Microsoft.Network/applicationGateways/', variables('applicationGateWayName'))]"
+      ],
+      "sku": {
+        "name": "[parameters('vmSku')]",
+        "tier": "Standard",
+        "capacity": "[parameters('instanceCount')]"
       },
-      "type": "Microsoft.Compute/virtualMachines",
-      "apiVersion": "2021-11-01",
-      "name": "[format('{0}{1}', variables('virtualMachineName'), add(range(0, 2)[copyIndex()], 1))]",
-      "location": "[parameters('location')]",
       "properties": {
-        "hardwareProfile": {
-          "vmSize": "[parameters('vmSize')]"
+        "overprovision": "true",
+        "singlePlacementGroup": "false",
+        "upgradePolicy": {
+          "mode": "Automatic"
         },
-        "storageProfile": {
-          "imageReference": {
-            "publisher": "MicrosoftWindowsServer",
-            "offer": "WindowsServer",
-            "sku": "2016-Datacenter",
-            "version": "latest"
-          },
-          "osDisk": {
-            "osType": "Windows",
-            "createOption": "FromImage",
-            "caching": "ReadWrite",
-            "managedDisk": {
-              "storageAccountType": "StandardSSD_LRS"
+        "virtualMachineProfile": {
+          "storageProfile": {
+            "osDisk": {
+              "caching": "ReadWrite",
+              "createOption": "FromImage"
             },
-            "diskSizeGB": 127
-          }
-        },
-        "osProfile": {
-          "computerName": "[format('{0}{1}', variables('virtualMachineName'), add(range(0, 2)[copyIndex()], 1))]",
-          "adminUsername": "[parameters('adminUsername')]",
-          "adminPassword": "[parameters('adminPassword')]",
-          "windowsConfiguration": {
-            "provisionVMAgent": true,
-            "enableAutomaticUpdates": true
+            "imageReference": "[variables('imageReference')]"
           },
-          "allowExtensionOperations": true
-        },
-        "networkProfile": {
-          "networkInterfaces": [
-            {
-              "id": "[resourceId('Microsoft.Network/networkInterfaces', format('{0}{1}', variables('networkInterfaceName'), add(range(0, 2)[copyIndex()], 1)))]"
-            }
-          ]
+          "osProfile": {
+            "computerNamePrefix": "antmedia-origin",
+            "adminUsername": "[parameters('adminUsername')]",
+            "adminPassword": "[parameters('adminPassword')]",
+            "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'password'), json('null'), variables('linuxConfiguration'))]"
+          },
+          "networkProfile": {
+            "networkInterfaceConfigurations": [
+              {
+                "name": "[variables('networkInterfaceName')]",
+                "properties": {
+                  "primary": true,
+                  "ipConfigurations": [
+                    {
+                      "name": "[variables('ipConfigName')]",
+                      "properties": {
+                      "privateIPAllocationMethod": "Dynamic",
+                      "publicIPAddress": {
+                          "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName'))]"
+                      },
+                        "subnet": {
+                          "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'origin')]"
+                        },
+                        "ApplicationGatewayBackendAddressPools": [
+                          {
+                            "id": "[resourceId('Microsoft.Network/applicationGateways/backendAddressPools/', variables('applicationGateWayName'), 'myBackendPool')]"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
         }
-      },
-      "dependsOn": [
-        "networkInterface"
-      ]
-    },
-    {
-      "copy": {
-        "name": "virtualMachine_IIS",
-        "count": "[length(range(0, 2))]"
-      },
-      "type": "Microsoft.Compute/virtualMachines/extensions",
-      "apiVersion": "2021-11-01",
-      "name": "[format('{0}{1}/IIS', variables('virtualMachineName'), add(range(0, 2)[copyIndex()], 1))]",
-      "location": "[parameters('location')]",
-      "properties": {
-        "autoUpgradeMinorVersion": true,
-        "publisher": "Microsoft.Compute",
-        "type": "CustomScriptExtension",
-        "typeHandlerVersion": "1.4",
-        "settings": {
-          "commandToExecute": "powershell Add-WindowsFeature Web-Server; powershell Add-Content -Path \"C:\\inetpub\\wwwroot\\Default.htm\" -Value $($env:computername)"
-        }
-      },
-      "dependsOn": [
-        "virtualMachine"
-      ]
+      }
     },
     {
       "type": "Microsoft.Network/applicationGateways",
@@ -216,7 +344,7 @@
             "name": "appGatewayIpConfig",
             "properties": {
               "subnet": {
-                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), 'myAGSubnet')]"
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'app-gw')]"
               }
             }
           }
@@ -298,29 +426,47 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.Network/publicIPAddresses', format('{0}{1}', variables('publicIPAddressName'), range(0, 3)[0]))]",
-        "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))]"
+        "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'origin')]"
       ]
     },
     {
       "copy": {
+        "name": "publicIPAddress",
+        "count": "[parameters('instanceCount')]"
+      },
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2021-05-01",
+      "name": "[format('{0}-{1}', variables('publicIPAddressName'), copyIndex())]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard"
+      },
+      "properties": {
+        "publicIPAddressVersion": "IPv4",
+        "publicIPAllocationMethod": "Static",
+        "idleTimeoutInMinutes": 4
+      }
+    },
+    {
+      "copy": {
         "name": "networkInterface",
-        "count": "[length(range(0, 2))]"
+        "count": "[parameters('instanceCount')]"
       },
       "type": "Microsoft.Network/networkInterfaces",
       "apiVersion": "2021-05-01",
-      "name": "[format('{0}{1}', variables('networkInterfaceName'), add(range(0, 2)[copyIndex()], 1))]",
+      "name": "[format('{0}-{1}', variables('networkInterfaceName'), copyIndex())]",
       "location": "[parameters('location')]",
       "properties": {
         "ipConfigurations": [
           {
-            "name": "[format('{0}{1}', variables('ipconfigName'), add(range(0, 2)[copyIndex()], 1))]",
+            "name": "[variables('ipconfigName')]",
             "properties": {
               "privateIPAllocationMethod": "Dynamic",
               "publicIPAddress": {
-                "id": "[resourceId('Microsoft.Network/publicIPAddresses', format('{0}{1}', variables('publicIPAddressName'), add(range(0, 2)[copyIndex()], 1)))]"
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', format('{0}-{1}', variables('publicIPAddressName'), copyIndex()))]"
               },
               "subnet": {
-                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), 'myBackendSubnet')]"
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'origin')]"
               },
               "primary": true,
               "privateIPAddressVersion": "IPv4",
@@ -335,13 +481,13 @@
         "enableAcceleratedNetworking": false,
         "enableIPForwarding": false,
         "networkSecurityGroup": {
-          "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}{1}', variables('nsgName'), add(range(0, 2)[copyIndex()], 1)))]"
+          "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-{1}', variables('nsgName'), copyIndex()))]"
         }
       },
       "dependsOn": [
         "[resourceId('Microsoft.Network/applicationGateways', variables('applicationGateWayName'))]",
-        "nsg",
-        "publicIPAddress"
+        "[resourceId('Microsoft.Network/publicIPAddresses', format('{0}-{1}', variables('publicIPAddressName'), copyIndex()))]",
+        "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-{1}', variables('nsgName'), copyIndex()))]"
       ]
     }
   ]
