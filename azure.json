@@ -17,6 +17,18 @@
                 "description": "The size of the VM"
             }
         },
+        "certData": {
+          "type": "securestring",
+          "metadata": {
+            "description": "Base-64 encoded form of the .pfx file"
+          }
+        },
+        "certPassword": {
+          "type": "securestring",
+          "metadata": {
+            "description": "Password for .pfx certificate"
+          }
+        },
         "adminUsername": {
             "type": "String",
             "metadata": {
@@ -137,7 +149,101 @@
                             "sourceAddressPrefix": "*",
                             "destinationAddressPrefix": "*",
                             "access": "Allow",
-                            "priority": 123,
+                            "priority": 100,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "mongodb_rule",
+                        "properties": {
+                            "description": "Locks inbound down to MongoDB default port 27017.",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "27017",
+                            "sourceAddressPrefix": "10.0.0.0/16",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 101,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "2020-05-01",
+            "name": "AMSScaleSet-Security-Group",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "ssh_rule",
+                        "properties": {
+                            "description": "Locks inbound down to ssh default port 22.",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 100,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "cluster_rule1",
+                        "properties": {
+                            "description": "Locks inbound down to Cluster default port 5000.",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "5000",
+                            "sourceAddressPrefix": "10.0.0.0/16",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 101,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "cluster_rule2",
+                        "properties": {
+                            "description": "Locks inbound down to Cluster default port 5000.",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "5000",
+                            "sourceAddressPrefix": "10.0.0.0/16",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 102,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "cluster_rule3",
+                        "properties": {
+                            "description": "Locks inbound down to Cluster default port 5080.",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "5080",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 103,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "cluster_rule4",
+                        "properties": {
+                            "description": "Locks inbound down to Cluster default port 50000-60000.",
+                            "protocol": "Udp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "50000-60000",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 104,
                             "direction": "Inbound"
                         }
                     }
@@ -226,6 +332,15 @@
           "name": "Standard_v2",
           "tier": "Standard_v2"
         },
+        "sslCertificates": [
+          {
+            "name": "appGatewaySslCert",
+            "properties": {
+              "data": "[parameters('certData')]",
+              "password": "[parameters('certPassword')]"
+            }
+          }
+        ],
         "gatewayIPConfigurations": [
           {
             "name": "appGatewayIpConfig",
@@ -249,9 +364,9 @@
         ],
         "frontendPorts": [
           {
-            "name": "port_80",
+            "name": "port_443",
             "properties": {
-              "port": 80
+              "port": 443
             }
           }
         ],
@@ -265,7 +380,7 @@
           {
             "name": "myHTTPSetting",
             "properties": {
-              "port": 80,
+              "port": 5080,
               "protocol": "Http",
               "cookieBasedAffinity": "Disabled",
               "pickHostNameFromBackendAddress": false,
@@ -281,10 +396,12 @@
                 "id": "[resourceId('Microsoft.Network/applicationGateways/frontendIPConfigurations', variables('applicationGateWayName'), 'appGwPublicFrontendIp')]"
               },
               "frontendPort": {
-                "id": "[resourceId('Microsoft.Network/applicationGateways/frontendPorts', variables('applicationGateWayName'), 'port_80')]"
+                "id": "[resourceId('Microsoft.Network/applicationGateways/frontendPorts', variables('applicationGateWayName'), 'port_443')]"
               },
-              "protocol": "Http",
-              "requireServerNameIndication": false
+              "Protocol": "Https",
+              "SslCertificate": {
+                "Id": "[resourceId('Microsoft.Network/applicationGateways/sslCertificates',variables('applicationGatewayName'), 'appGatewaySslCert')]"
+              }
             }
           }
         ],
@@ -372,7 +489,8 @@
                     {
                         "name": "antmedia-mongodb-IPConfig",
                         "properties": {
-                            "privateIPAllocationMethod": "Dynamic",
+                            "privateIPAllocationMethod": "Static",
+                            "privateIPAddress": "10.0.1.99",
                             "publicIPAddress": {
                                 "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName'))]"
                             },
@@ -381,7 +499,10 @@
                             }
                         }
                     }
-                ]
+                ],
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'MongoDB-Security-Group')]"
+                }
             }
         },
         {
@@ -391,7 +512,9 @@
             "location": "[resourceGroup().location]",
             "dependsOn": [
                 "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'origin')]",
-                "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'edge')]"
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'edge')]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', 'AMSScaleSet-Security-Group')]"
+
             ],
             "sku": {
                 "name": "Standard_F2s_v2",
@@ -413,7 +536,7 @@
                         "adminUsername": "[parameters('adminUsername')]",
                         "adminPassword": "[parameters('adminPasswordOrKey')]",
                         "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'password'), null(), variables('linuxConfiguration'))]",
-                        "customData": "[base64('sudo sed -i \"/org.apache.catalina.valves.RemoteIpValve/d\" /usr/local/antmedia/conf/jee-container.xml && /usr/local/antmedia/change_server_mode.sh cluster 10.0.1.4')]"
+                        "customData": "[base64('sudo sed -i \"/org.apache.catalina.valves.RemoteIpValve/d\" /usr/local/antmedia/conf/jee-container.xml && /usr/local/antmedia/change_server_mode.sh cluster 10.0.1.99')]"
                     },
                     "storageProfile": {
                         "osDisk": {
@@ -460,7 +583,10 @@
                                                     }                                            
                                             }
                                         }
-                                    ]
+                                    ],
+                                    "networkSecurityGroup": {
+                                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'AMSScaleSet-Security-Group')]"
+                                    }
                                 }
                             }
                         ]
