@@ -542,7 +542,8 @@
                     "adminUsername": "[parameters('adminUsername')]",
                     "adminPassword": "[parameters('adminPasswordOrKey')]",
                     "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'password'), null(), variables('linuxConfiguration'))]",
-                    "customData": "[base64('wget https://raw.githubusercontent.com/ant-media/Scripts/master/install_mongodb.sh && chmod +x install_mongodb.sh && ./install_mongodb.sh')]"
+                    "customData": "[base64('#!/bin/bash\nwget -O install_mongodb.sh https://raw.githubusercontent.com/ant-media/Scripts/master/install_mongodb.sh\nchmod +x install_mongodb.sh\n./install_mongodb.sh')]"
+
                 }
             }
         },
