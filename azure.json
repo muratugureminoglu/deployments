@@ -10,7 +10,37 @@
             "defaultValue": "antmedia-cluster",
             "type": "String"
         },
-        "vmSize": {
+        "OriginInstanceSize": {
+          "type": "string",
+          "defaultValue": "Standard_D2s_v3",
+          "metadata": {
+            "description": "Size of Origin VMs in the VM Scale Set."
+          }
+        },
+        "OriginInstanceCount": {
+          "type": "int",
+          "metadata": {
+            "description": "Number of VM instances (100 or less)."
+          },
+          "minValue": 1,
+          "maxValue": 100
+        },
+        "EdgeInstanceSize": {
+          "type": "string",
+          "defaultValue": "Standard_D2s_v3",
+          "metadata": {
+            "description": "Size of Edge VMs in the VM Scale Set."
+          }
+        },
+        "EdgeInstanceCount": {
+          "type": "int",
+          "metadata": {
+            "description": "Number of VM instances (100 or less)."
+          },
+          "minValue": 1,
+          "maxValue": 100
+        },
+        "MongoDBInstanceSize": {
             "defaultValue": "Standard_D2s_v3",
             "type": "String",
             "metadata": {
@@ -368,11 +398,21 @@
             "properties": {
               "port": 443
             }
+          },
+          {
+            "name": "port_5443",
+            "properties": {
+              "port": 5443
+            }
           }
         ],
         "backendAddressPools": [
           {
             "name": "OriginBackendPool",
+            "properties": {}
+          },
+          {
+            "name": "EdgeBackendPool",
             "properties": {}
           }
         ],
@@ -390,7 +430,7 @@
         ],
         "httpListeners": [
           {
-            "name": "myListener",
+            "name": "443Listener",
             "properties": {
               "frontendIPConfiguration": {
                 "id": "[resourceId('Microsoft.Network/applicationGateways/frontendIPConfigurations', variables('applicationGateWayName'), 'appGwPublicFrontendIp')]"
@@ -403,15 +443,30 @@
                 "Id": "[resourceId('Microsoft.Network/applicationGateways/sslCertificates',variables('applicationGatewayName'), 'appGatewaySslCert')]"
               }
             }
-          }
+          },
+        {
+            "name": "5443Listener",
+            "properties": {
+                "frontendIPConfiguration": {
+                    "id": "[resourceId('Microsoft.Network/applicationGateways/frontendIPConfigurations', variables('applicationGateWayName'), 'appGwPublicFrontendIp')]"
+                },
+                "frontendPort": {
+                    "id": "[resourceId('Microsoft.Network/applicationGateways/frontendPorts', variables('applicationGateWayName'), 'port_5443')]"
+                },
+                "Protocol": "Https",
+                "SslCertificate": {
+                    "Id": "[resourceId('Microsoft.Network/applicationGateways/sslCertificates',variables('applicationGatewayName'), 'appGatewaySslCert')]"
+                }
+            }
+        }
         ],
         "requestRoutingRules": [
           {
-            "name": "myRoutingRule",
+            "name": "443RoutingRule",
             "properties": {
               "ruleType": "Basic",
               "httpListener": {
-                "id": "[resourceId('Microsoft.Network/applicationGateways/httpListeners', variables('applicationGateWayName'), 'myListener')]"
+                "id": "[resourceId('Microsoft.Network/applicationGateways/httpListeners', variables('applicationGateWayName'), '443Listener')]"
               },
               "backendAddressPool": {
                 "id": "[resourceId('Microsoft.Network/applicationGateways/backendAddressPools', variables('applicationGateWayName'), 'OriginBackendPool')]"
@@ -420,7 +475,22 @@
                 "id": "[resourceId('Microsoft.Network/applicationGateways/backendHttpSettingsCollection', variables('applicationGateWayName'), 'myHTTPSetting')]"
               }
             }
-          }
+          },
+        {
+            "name": "5443RoutingRule",
+            "properties": {
+                "ruleType": "Basic",
+                "httpListener": {
+                    "id": "[resourceId('Microsoft.Network/applicationGateways/httpListeners', variables('applicationGateWayName'), '5443Listener')]"
+                },
+                "backendAddressPool": {
+                    "id": "[resourceId('Microsoft.Network/applicationGateways/backendAddressPools', variables('applicationGateWayName'), 'EdgeBackendPool')]"
+                },
+                "backendHttpSettings": {
+                    "id": "[resourceId('Microsoft.Network/applicationGateways/backendHttpSettingsCollection', variables('applicationGateWayName'), 'myHTTPSetting')]"
+                }
+            }
+        }
         ],
         "enableHttp2": false,
         "autoscaleConfiguration": {
@@ -444,7 +514,7 @@
             ],
             "properties": {
                 "hardwareProfile": {
-                    "vmSize": "[parameters('vmSize')]"
+                    "vmSize": "[parameters('MongoDBInstanceSize')]"
                 },
                 "storageProfile": {
                     "osDisk": {
@@ -472,8 +542,7 @@
                     "adminUsername": "[parameters('adminUsername')]",
                     "adminPassword": "[parameters('adminPasswordOrKey')]",
                     "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'password'), null(), variables('linuxConfiguration'))]",
-                    "customData": "[base64('#!/bin/bash\nwget -O install_mongodb.sh https://raw.githubusercontent.com/ant-media/Scripts/master/install_mongodb.sh\nchmod +x install_mongodb.sh\n./install_mongodb.sh')]"
-
+                    "customData": "[base64('wget https://raw.githubusercontent.com/ant-media/Scripts/master/install_mongodb.sh && chmod +x install_mongodb.sh && ./install_mongodb.sh')]"
                 }
             }
         },
@@ -518,9 +587,9 @@
 
             ],
             "sku": {
-                "name": "Standard_F2s_v2",
+                "name": "[parameters('OriginInstanceSize')]",
                 "tier": "Standard",
-                "capacity": 1
+                "capacity": "[parameters('OriginInstanceCount')]"
             },
             "plan": {
                 "name": "enterprise_edition",
@@ -571,6 +640,95 @@
                                                       "applicationGatewayBackendAddressPools": [
                                                 {
                                                   "id": "[resourceId('Microsoft.Network/applicationGateways/backendAddressPools', variables('applicationGateWayName'), 'OriginBackendPool')]"
+                                                }
+                                              ],
+                                                "primary": true,
+                                                "publicIPAddressConfiguration": {
+                                                    "name": "publicIp-antmedia-cluster-vnet-nic01",
+                                                    "properties": {
+                                                        "idleTimeoutInMinutes": 15,
+                                                        "ipTags": [],
+                                                        "publicIPAddressVersion": "IPv4"
+                                                    }
+                                                    }                                            
+                                            }
+                                        }
+                                    ],
+                                    "networkSecurityGroup": {
+                                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'AMSScaleSet-Security-Group')]"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+                {
+            "type": "Microsoft.Compute/virtualMachineScaleSets",
+            "apiVersion": "2023-03-01",
+            "name": "antmedia-edge",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'origin')]",
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'edge')]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', 'AMSScaleSet-Security-Group')]"
+
+            ],
+            "sku": {
+                "name": "[parameters('EdgeInstanceSize')]",
+                "tier": "Standard",
+                "capacity": "[parameters('EdgeInstanceCount')]"
+            },
+            "plan": {
+                "name": "enterprise_edition",
+                "product": "ant_media_server_enterprise",
+                "publisher": "antmedia"
+            },
+            "properties": {
+                "platformFaultDomainCount": 1,
+                "singlePlacementGroup": false,
+                "orchestrationMode": "Flexible",
+                "virtualMachineProfile": {
+                    "osProfile": {
+                        "computerNamePrefix": "antmedia-",
+                        "adminUsername": "[parameters('adminUsername')]",
+                        "adminPassword": "[parameters('adminPasswordOrKey')]",
+                        "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'password'), null(), variables('linuxConfiguration'))]",
+                        "customData": "[base64('sudo sed -i \"/org.apache.catalina.valves.RemoteIpValve/d\" /usr/local/antmedia/conf/jee-container.xml && /usr/local/antmedia/change_server_mode.sh cluster 10.0.1.99')]"
+                    },
+                    "storageProfile": {
+                        "osDisk": {
+                            "createOption": "FromImage",
+                            "managedDisk": {
+                                "storageAccountType": "Premium_LRS"
+                            }
+                        },
+                        "imageReference": {
+                            "publisher": "antmedia",
+                            "offer": "ant_media_server_enterprise",
+                            "sku": "enterprise_edition",
+                            "version": "latest"
+                        }
+                    },
+                    "networkProfile": {
+                        "networkApiVersion": "2020-11-01",
+                        "networkInterfaceConfigurations": [
+                            {
+                                "name": "nicConfig",
+                                "properties": {
+                                    "primary": true,
+                                    "ipConfigurations": [
+                                        {
+                                            "name": "antmedia-cluster-vnet-nic01-defaultIpConfiguration",
+                                            "properties": {
+                                                "privateIPAddressVersion": "IPv4",
+                                                "subnet": {
+                                                    "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_antmedia_cluster_vnet_name'), 'edge')]"
+                                                },
+                                                      "applicationGatewayBackendAddressPools": [
+                                                {
+                                                  "id": "[resourceId('Microsoft.Network/applicationGateways/backendAddressPools', variables('applicationGateWayName'), 'EdgeBackendPool')]"
                                                 }
                                               ],
                                                 "primary": true,
