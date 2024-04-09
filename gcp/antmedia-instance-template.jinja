@@ -1,0 +1,40 @@
+resources:
+- name: ams-origin-template
+  type: compute.v1.instanceTemplate
+  properties:
+    properties:
+      zone: {{ properties["zone"] }}
+      machineType: {{ properties["origin_machine_type"] }}
+      disks:
+      - deviceName: boot
+        type: PERSISTENT
+        boot: true
+        autoDelete: true
+        initializeParams:
+          sourceImage: projects/antmedia-public-385620/global/images/ams-marketplace282
+      networkInterfaces:
+      - network: $(ref.antmedia-vpc-network.selfLink)
+        subnetwork: $(ref.origin-subnet.selfLink)
+        accessConfigs:
+        - name: External NAT
+          type: ONE_TO_ONE_NAT
+
+- name: ams-edge-template
+  type: compute.v1.instanceTemplate
+  properties:
+    properties:
+      zone: {{ properties["zone"] }}
+      machineType: {{ properties["edge_machine_type"] }}
+      disks:
+      - deviceName: boot
+        type: PERSISTENT
+        boot: true
+        autoDelete: true
+        initializeParams:
+          sourceImage: projects/antmedia-public-385620/global/images/ams-marketplace282
+      networkInterfaces:
+      - network: $(ref.antmedia-vpc-network.selfLink)
+        subnetwork: $(ref.edge-subnet.selfLink)
+        accessConfigs:
+        - name: External NAT
+          type: ONE_TO_ONE_NAT

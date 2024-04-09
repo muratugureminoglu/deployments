@@ -14,6 +14,7 @@
 
 imports:
 - path: antmedia-mongodb-template.jinja
+- path: antmedia-instance-template.jinja
 - path: antmedia-firewall-template.jinja
 - path: antmedia-vpc-template.jinja
 - path: antmedia.jinja
