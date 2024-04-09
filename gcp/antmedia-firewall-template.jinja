@@ -14,9 +14,31 @@ limitations under the License.
 #}
 
 resources:
-- name: antmedia-mongodb
-  type: antmedia-mongodb-template.jinja
+- type: compute.v1.firewall
+  name: allow-internal-mongodb
   properties:
-    zone: us-central1-a
-- name: antmedia-firewall
-  type: antmedia-firewall-template.jinja
+    network: $(ref.default.network)
+    sourceRanges:
+    - 10.128.0.0/9
+    targetTags:
+    - antmedia-mongodb
+    allowed:
+    - IPProtocol: tcp
+      ports:
+      - "27017"
+      - "22"
+
+- type: compute.v1.firewall
+  name: allow-antmedia
+  properties:
+    network: $(ref.default.network)
+    sourceRanges:
+    - 0.0.0.0/0
+    targetTags:
+    - antmedia
+    allowed:
+    - IPProtocol: tcp
+      ports:
+      - "5080"
+      - "22"
+

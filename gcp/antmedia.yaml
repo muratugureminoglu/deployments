@@ -16,7 +16,6 @@ imports:
 - path: antmedia-mongodb-template.jinja
 - path: antmedia.jinja
 - path: firewall-template.jinja
-#- path: network-template.jinja
 
 
 resources:
