@@ -13,10 +13,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 #}
 
+{% set default_zone = "us-central1-a" %}
+{% set default_region = "us-central1" %}
+
 resources:
 - name: antmedia-mongodb
   type: antmedia-mongodb-template.jinja
   properties:
-    zone: us-central1-a
+    zone: {{ default_zone }}
 - name: antmedia-firewall
   type: antmedia-firewall-template.jinja
+  properties:
+    zone: {{ default_zone}}
+- name: antmedia-vpc-network
+  type: antmedia-vpc-template.jinja
+  properties:
+    region: {{ default_region}}
+    autoCreateSubnetworks: false
