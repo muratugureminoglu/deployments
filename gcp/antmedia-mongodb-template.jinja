@@ -16,7 +16,7 @@ limitations under the License.
 
 resources:
 - type: compute.v1.instance
-  name: ams-mongodb-{{ env["deployment"] }}
+  name: {{ env["deployment"] }}-mongodb
   properties:
     zone: {{ properties["zone"] }}
     machineType: https://www.googleapis.com/compute/v1/projects/{{ env["project"] }}/zones/{{ properties["zone"] }}/machineTypes/f1-micro
