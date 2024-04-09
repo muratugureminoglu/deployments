@@ -17,9 +17,9 @@ resources:
 - type: compute.v1.firewall
   name: ams-mongodb-internal
   properties:
-    network: https://www.googleapis.com/compute/v1/projects/{{ env["project"] }}/global/networks/default
+    network: $(ref.antmedia-vpc-network.selfLin
     sourceRanges:
-    - 10.128.0.0/9
+    - 10.0.0.0/16
     targetTags:
     - antmedia-mongodb
     allowed:
@@ -31,7 +31,7 @@ resources:
 - type: compute.v1.firewall
   name: ams-antmedia-external
   properties:
-    network: https://www.googleapis.com/compute/v1/projects/{{ env["project"] }}/global/networks/default
+    network: $(ref.antmedia-vpc-network.selfLin
     sourceRanges:
     - 0.0.0.0/0
     targetTags:
