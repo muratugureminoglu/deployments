@@ -1,0 +1,50 @@
+resources:
+
+
+- name: ams-origin-backend
+  type: compute.v1.backendService
+  properties:
+    backends:
+    - balancingMode: UTILIZATION
+      capacityScaler: 1.0
+      group: projects/{{ env["project"] }}/zones/{{ properties["zone"] }}/instanceGroups/origin-instance-group
+      maxUtilization: 0.8
+    cdnPolicy:
+      cacheKeyPolicy:
+        includeHost: true
+        includeProtocol: true
+        includeQueryString: true
+      cacheMode: CACHE_ALL_STATIC
+      clientTtl: 3600
+      defaultTtl: 3600
+      maxTtl: 86400
+      negativeCaching: false
+      requestCoalescing: true
+      serveWhileStale: 0
+    compressionMode: DISABLED
+    connectionDraining:
+      drainingTimeoutSec: 300
+    enableCDN: true
+    healthChecks:
+    - $(ref.ams-health-check.selfLink)
+    loadBalancingScheme: EXTERNAL_MANAGED
+    localityLbPolicy: ROUND_ROBIN
+    logConfig:
+      enable: false
+    port: 5080
+    portName: http
+    protocol: HTTP
+    securityPolicy: https://www.googleapis.com/compute/v1/projects/antmedia-public-385620/global/securityPolicies/default-security-policy-for-backend-service-test
+    sessionAffinity: NONE
+    timeoutSec: 30
+  metadata:
+    dependsOn:
+    - origin-instance-group
+
+- name: ams-health-check
+  type: compute.v1.healthCheck
+  properties:
+    type: HTTP
+    httpHealthCheck:
+      port: 5080
+      requestPath: /

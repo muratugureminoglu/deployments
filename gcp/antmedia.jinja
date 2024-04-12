@@ -32,6 +32,15 @@ resources:
     zone: {{ default_zone }}
     origin_machine_type: {{ origin_machine_type }}
     edge_machine_type: {{ edge_machine_type }}
+- name: antmedia-instance-group
+  type: antmedia-instance-group-template.jinja
+  properties:
+    zone: {{ default_zone }}
+- name: antmedia-loadbalancer
+  type: antmedia-loadbalancer-template.jinja
+  properties:
+    zone: {{ default_zone }}
+    region: {{ default_region}}
 - name: antmedia-firewall
   type: antmedia-firewall-template.jinja
   properties:

@@ -17,6 +17,8 @@ imports:
 - path: antmedia-instance-template.jinja
 - path: antmedia-firewall-template.jinja
 - path: antmedia-vpc-template.jinja
+- path: antmedia-loadbalancer-template.jinja
+- path: antmedia-instance-group-template.jinja
 - path: antmedia.jinja
 
 resources:
