@@ -1,50 +1,155 @@
+{% set scenarios = ['origin', 'edge'] %}
+
+
 resources:
-
-
-- name: ams-origin-backend
-  type: compute.v1.backendService
+{% for scenario in scenarios %}
+- name: ams-load-balancer-{{ scenario }}
+  type: compute.v1.globalForwardingRule
   properties:
-    backends:
-    - balancingMode: UTILIZATION
-      capacityScaler: 1.0
-      group: projects/{{ env["project"] }}/zones/{{ properties["zone"] }}/instanceGroups/origin-instance-group
-      maxUtilization: 0.8
-    cdnPolicy:
-      cacheKeyPolicy:
-        includeHost: true
-        includeProtocol: true
-        includeQueryString: true
-      cacheMode: CACHE_ALL_STATIC
-      clientTtl: 3600
-      defaultTtl: 3600
-      maxTtl: 86400
-      negativeCaching: false
-      requestCoalescing: true
-      serveWhileStale: 0
-    compressionMode: DISABLED
-    connectionDraining:
-      drainingTimeoutSec: 300
-    enableCDN: true
-    healthChecks:
-    - $(ref.ams-health-check.selfLink)
-    loadBalancingScheme: EXTERNAL_MANAGED
-    localityLbPolicy: ROUND_ROBIN
-    logConfig:
-      enable: false
+    region: {{ properties["region"] }}
+    loadBalancingScheme: EXTERNAL
+    target: $(ref.ams-target-proxy-{{ scenario }}.selfLink)
+    IPAddress: $(ref.lb-ipaddress-{{ scenario }}.address)
+    IPProtocol: TCP
+    portRange: 443-443
+
+- name: ams-target-proxy-{{ scenario }}
+  type: compute.v1.targetHttpsProxy
+  properties:
+    urlMap: $(ref.ams-{{ scenario }}.selfLink)
+    sslCertificates:
+    - $(ref.ams-ssl-cert-{{ scenario }}.selfLink)
+
+- name: lb-ipaddress-{{ scenario }}
+  type: compute.v1.globalAddress
+
+- name: ams-{{ scenario }}
+  type: compute.v1.urlMap
+  properties:
+    defaultService: $(ref.ams-backend-{{ scenario }}.selfLink)
+
+- name: ams-ssl-cert-{{ scenario }}
+  type: compute.v1.sslCertificate
+  properties:
+    certificate: |
+        -----BEGIN CERTIFICATE-----
+        MIIE/jCCA+agAwIBAgISBHW32MTUSu92tFgbMqLTyTveMA0GCSqGSIb3DQEBCwUA
+        MDIxCzAJBgNVBAYTAlVTMRYwFAYDVQQKEw1MZXQncyBFbmNyeXB0MQswCQYDVQQD
+        EwJSMzAeFw0yNDAzMDYxMjE2MTNaFw0yNDA2MDQxMjE2MTJaMCMxITAfBgNVBAMT
+        GGFtcy0xMzI0My5hbnRtZWRpYS5jbG91ZDCCASIwDQYJKoZIhvcNAQEBBQADggEP
+        ADCCAQoCggEBAMoa0laTvfvZrS/8x2ViDZBqm+U1ejZ1IYYjiD7OyipTd9kc74yk
+        88hg8qLXF7bFHamT5dg1VQJ/yAuBRg2G5eYLIEJJsgLvC+sGgq5+tWnBeta0sthg
+        8tnHlHSfNy6qSmaa6bROM6ECrviEyi/kF3013sE8MpcABQvy5KafCQcLADhywGhA
+        ZTtDeV14vT80BuKz5cF4y403XIxyzpxfqR9xrrGi+iUBejrQjSfRGMY/cq17aSTH
+        j2ZcSbE5sVREZ3v/gupQLuKTTCXBeLpkWEgsXL6j2z3/T6xaAVYPJpr1LZHSOOqJ
+        3FvDbdgncOc8xBTfQEF30CyhtgGYlzms12MCAwEAAaOCAhswggIXMA4GA1UdDwEB
+        /wQEAwIFoDAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwDAYDVR0TAQH/
+        BAIwADAdBgNVHQ4EFgQUD8aXmRJXPVu6+4EJ5HJPBy27+AEwHwYDVR0jBBgwFoAU
+        FC6zF7dYVsuuUAlA5h+vnYsUwsYwVQYIKwYBBQUHAQEESTBHMCEGCCsGAQUFBzAB
+        hhVodHRwOi8vcjMuby5sZW5jci5vcmcwIgYIKwYBBQUHMAKGFmh0dHA6Ly9yMy5p
+        LmxlbmNyLm9yZy8wIwYDVR0RBBwwGoIYYW1zLTEzMjQzLmFudG1lZGlhLmNsb3Vk
+        MBMGA1UdIAQMMAowCAYGZ4EMAQIBMIIBBQYKKwYBBAHWeQIEAgSB9gSB8wDxAHcA
+        7s3QZNXbGs7FXLedtM0TojKHRny87N7DUUhZRnEftZsAAAGOE+hIwwAABAMASDBG
+        AiEAkjyKfYah8YiNzjYekZpTxkDecuFHeNU28s78GwYDZ88CIQCpG26At1RR1bC6
+        DXcItkTbe7oM9P0syDDyRp4po+vniAB2AEiw42vapkc0D+VqAvqdMOscUgHLVt0s
+        gdm7v6s52IRzAAABjhPoSMcAAAQDAEcwRQIgJcLRqjXnsI9H8h2AeVHjAgDv/s4V
+        8wOzCPeGRYLCx4cCIQDB/C93K8423BSSET1Bb/fmd/1EzSIGjAC70MPgLAg/UjAN
+        BgkqhkiG9w0BAQsFAAOCAQEAdWTZ+ibpd9yNIdbwvNkySWMxIhJudL1cpDGiySsd
+        DXO6rQH/Z2pVjVexDWiE1jAqWANnVfF61GOlom/cnJSkGvcEetgb/qPu9rFFyoPL
+        H11BKXksUvaDnYjU+4Ek2Z/Yi3tYkRLx1YvhBz/uc5jY4hTu3PPaRLdM0bOAFL41
+        MYb/1gA9KSH39x0+jMG7YbZ1ntgmm7r+aJL22MW3yRA6lxvGrwdONS8NHDaNH8UA
+        QmtfX/2fZCPiLrU5apd7heN6Jopc/e06bfswZkwHcb9PzPz0H+PtWwsVKb5S5DXX
+        2M1PzvcLnKMoOVU0YeDnSzzKqi6z+a6QlKAVNECLa1eBvQ==
+        -----END CERTIFICATE-----
+        -----BEGIN CERTIFICATE-----
+        MIIFFjCCAv6gAwIBAgIRAJErCErPDBinU/bWLiWnX1owDQYJKoZIhvcNAQELBQAw
+        TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
+        cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMjAwOTA0MDAwMDAw
+        WhcNMjUwOTE1MTYwMDAwWjAyMQswCQYDVQQGEwJVUzEWMBQGA1UEChMNTGV0J3Mg
+        RW5jcnlwdDELMAkGA1UEAxMCUjMwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK
+        AoIBAQC7AhUozPaglNMPEuyNVZLD+ILxmaZ6QoinXSaqtSu5xUyxr45r+XXIo9cP
+        R5QUVTVXjJ6oojkZ9YI8QqlObvU7wy7bjcCwXPNZOOftz2nwWgsbvsCUJCWH+jdx
+        sxPnHKzhm+/b5DtFUkWWqcFTzjTIUu61ru2P3mBw4qVUq7ZtDpelQDRrK9O8Zutm
+        NHz6a4uPVymZ+DAXXbpyb/uBxa3Shlg9F8fnCbvxK/eG3MHacV3URuPMrSXBiLxg
+        Z3Vms/EY96Jc5lP/Ooi2R6X/ExjqmAl3P51T+c8B5fWmcBcUr2Ok/5mzk53cU6cG
+        /kiFHaFpriV1uxPMUgP17VGhi9sVAgMBAAGjggEIMIIBBDAOBgNVHQ8BAf8EBAMC
+        AYYwHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsGAQUFBwMBMBIGA1UdEwEB/wQIMAYB
+        Af8CAQAwHQYDVR0OBBYEFBQusxe3WFbLrlAJQOYfr52LFMLGMB8GA1UdIwQYMBaA
+        FHm0WeZ7tuXkAXOACIjIGlj26ZtuMDIGCCsGAQUFBwEBBCYwJDAiBggrBgEFBQcw
+        AoYWaHR0cDovL3gxLmkubGVuY3Iub3JnLzAnBgNVHR8EIDAeMBygGqAYhhZodHRw
+        Oi8veDEuYy5sZW5jci5vcmcvMCIGA1UdIAQbMBkwCAYGZ4EMAQIBMA0GCysGAQQB
+        gt8TAQEBMA0GCSqGSIb3DQEBCwUAA4ICAQCFyk5HPqP3hUSFvNVneLKYY611TR6W
+        PTNlclQtgaDqw+34IL9fzLdwALduO/ZelN7kIJ+m74uyA+eitRY8kc607TkC53wl
+        ikfmZW4/RvTZ8M6UK+5UzhK8jCdLuMGYL6KvzXGRSgi3yLgjewQtCPkIVz6D2QQz
+        CkcheAmCJ8MqyJu5zlzyZMjAvnnAT45tRAxekrsu94sQ4egdRCnbWSDtY7kh+BIm
+        lJNXoB1lBMEKIq4QDUOXoRgffuDghje1WrG9ML+Hbisq/yFOGwXD9RiX8F6sw6W4
+        avAuvDszue5L3sz85K+EC4Y/wFVDNvZo4TYXao6Z0f+lQKc0t8DQYzk1OXVu8rp2
+        yJMC6alLbBfODALZvYH7n7do1AZls4I9d1P4jnkDrQoxB3UqQ9hVl3LEKQ73xF1O
+        yK5GhDDX8oVfGKF5u+decIsH4YaTw7mP3GFxJSqv3+0lUFJoi5Lc5da149p90Ids
+        hCExroL1+7mryIkXPeFM5TgO9r0rvZaBFOvV2z0gp35Z0+L4WPlbuEjN/lxPFin+
+        HlUjr8gRsI3qfJOQFy/9rKIJR0Y/8Omwt/8oTWgy1mdeHmmjk7j1nYsvC9JSQ6Zv
+        MldlTTKB3zhThV1+XWYp6rjd5JW1zbVWEkLNxE7GJThEUG3szgBVGP7pSWTUTsqX
+        nLRbwHOoq7hHwg==
+        -----END CERTIFICATE-----
+    privateKey: |
+        -----BEGIN PRIVATE KEY-----
+        MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQDKGtJWk7372a0v
+        /MdlYg2QapvlNXo2dSGGI4g+zsoqU3fZHO+MpPPIYPKi1xe2xR2pk+XYNVUCf8gL
+        gUYNhuXmCyBCSbIC7wvrBoKufrVpwXrWtLLYYPLZx5R0nzcuqkpmmum0TjOhAq74
+        hMov5Bd9Nd7BPDKXAAUL8uSmnwkHCwA4csBoQGU7Q3ldeL0/NAbis+XBeMuNN1yM
+        cs6cX6kfca6xovolAXo60I0n0RjGP3Kte2kkx49mXEmxObFURGd7/4LqUC7ik0wl
+        wXi6ZFhILFy+o9s9/0+sWgFWDyaa9S2R0jjqidxbw23YJ3DnPMQU30BBd9AsobYB
+        mJc5rNdjAgMBAAECggEAVEt8mHS1xGIlnILDjdMoUihNDnxQFX+kNGUEkiHA64d1
+        0N4DQfeY4GYjPW0WLHqppQ2VS6ju5IR0ZOwN0l2F7P2N/mfrcdLPdz73aZ1awBnd
+        SMkEYUCKefAGyN+RbgrDzmjlefk2Cn1qiigkhnYNoAFEf/dCKH3vHO05lg91/fPH
+        W5yO1xVTjbBVsvYLO5NMdsFyQG3qrFEad6hcJQhdLici9yM5d+2nHBuTMvLtXwak
+        eaWvHuJT19+DPY2/zCOo2aRmTRiDjg+def+okMMS5PZ4H1DkDFj4xNhO7Li70bXJ
+        YvbYq3a7EzgbfBXq/TmQhANYGFAxQKuZ5+D4DNIW+QKBgQD85CTVtLK6o88GkN/l
+        uG6NzNiCRW/GV0TZ4ao/c9bPB55LJ3GUuxJnqe1RfsQVj3RkVNLrSntcxuY6JIkN
+        mJDiMGgmipZ5N5W5cIwPHJyJByj9bK/rmNgW71gMmJENG53oQTLjfE5X5NmRVH2x
+        JEIFOD036yDOH6ueL0cE9ZBfuQKBgQDMltn0RrdENVWFI4Bh1/40MBrBVQuXGB7U
+        a5/ap34aYwI11qj8wOB+rabiRYSua2585epzMun/s3eWFDoZBcN/jSpzVCWTKQPh
+        XzWHbpdjg3Bd4Augls9Q/x4evnXd8p1WZlyzshc/1b3hGgDA4SUlOImWdOC/81a6
+        0qIwmbNl+wKBgQDFl2SIbaVwWuk5Eh0+mjoXJUTNlH9fE3TCYKXq6hGetS8jPXBr
+        azdYM9cvY8LFrc6dTgF2wj1dIjNknoNPUjNx56yY4JPtplagC6YDcLGGB0gpqrBR
+        fpzoXp4HSXWcLkXU4IxoXgnAdxjfioqiy9ehyG1csaRyKSCoefwdjdj+UQKBgQDB
+        I4P8vKmUZbknaD1xoQOk5ujLLOs1J5srM7MEK2y7ok5a3xxHCBqm3G6YW8KHGnqC
+        xFZRjHYlY5p4fv3d03gcuPqjR4P1ahn0r/oLsZaPZm004iZ34wcyUrVvlqQU9E4e
+        W6IWLgEOzUxk7jRZ4fI8MiSJeisWarWsxt5AfUlD8wKBgQDTXl0V7DDsQq+G+0ol
+        qVZhgxp388te5iokxx05lZv6k93m+bosk0GM+U5nDOFLGnCddwjt0+HheYdpgAkd
+        pVX65RG1BufnoJltmu4EpxoBB6ID6rpHatJRrR7GbfyeHqsusuMOd6jPnyeOAw94
+        UHFbXFFOv61P+uuHchBANT72Zg==
+        -----END PRIVATE KEY-----
+
+
+- name: ams-backend-{{ scenario }}
+  type: compute.v1.backendService  
+  properties:
     port: 5080
     portName: http
     protocol: HTTP
-    securityPolicy: https://www.googleapis.com/compute/v1/projects/antmedia-public-385620/global/securityPolicies/default-security-policy-for-backend-service-test
-    sessionAffinity: NONE
-    timeoutSec: 30
+    backends:
+      - name: backend
+        balancingMode: UTILIZATION
+        capacityScaler: 1.0
+        group: projects/{{ env["project"] }}/zones/{{ properties["zone"] }}/instanceGroups/{{ scenario }}-instance-group
+
+    maxUtilization: 0.8
+    connectionDraining:
+      drainingTimeoutSec: 300
+    healthChecks:
+      - $(ref.ams-health-check-{{ scenario }}.selfLink)
   metadata:
     dependsOn:
-    - origin-instance-group
+      - {{ scenario }}-instance-group
+      - ams-health-check-{{ scenario }}
 
-- name: ams-health-check
+- name: ams-health-check-{{ scenario }}
   type: compute.v1.healthCheck
   properties:
     type: HTTP
     httpHealthCheck:
       port: 5080
       requestPath: /
+
+{% endfor %}
